@@ -3,6 +3,7 @@
 #include <map>
 #include <vector>
 #include <queue>
+#include <algorithm>
 
 using namespace std;
 
@@ -18,9 +19,10 @@ using States = vector<State>;
 
 struct Solver{
     int H, W;
-    State init;
+    State init, goal;
     vector<int> goals;
     map<State,int> memo;
+    map<State,State> prev;
 
     Solver(int H, int W, State s): H(H), W(W), init(s){
         for(int i=0;i<W*H;++i){
@@ -98,6 +100,7 @@ struct Solver{
 
     bool solve(){
         memo.clear();
+        prev.clear();
         memo[init] = 0;
         queue<State> q;
         q.push(init);
@@ -106,7 +109,7 @@ struct Solver{
             q.pop();
 
             if(isend(s)){
-                cout << "GOAL!! STEP = " << memo[s] << endl;
+                goal = s;
                 return true;
             }
 
@@ -115,6 +118,7 @@ struct Solver{
             for(auto& state: states){
                 if(!memo.count(state)){
                     memo[state] = step + 1;
+                    prev[state] = s;
                     q.push(state);
                 }
             }
@@ -122,15 +126,21 @@ struct Solver{
 
         return false;
     }
-
-    void dump(){
-        for(auto& state: memo){
-            cout << state.second << endl;
-            for(int y=0;y<H;++y){
-                cout << state.first.substr(y*W, W) << endl;
-            }
-            cout << endl;
+    
+    void prints(const State& s) const{
+        for(int y=0;y<H;++y){
+            cout << s.substr(y*W, W) << endl;
         }
+    }
+
+    States getTrace() const {
+        States res = {goal};
+        while(prev.count(res.back())){
+            res.emplace_back(prev.at(res.back()));
+        }
+
+        reverse(begin(res), end(res));
+        return res;
     }
 };
 
@@ -147,10 +157,17 @@ Solver input(){
 }
 
 int main(){
-    Solver s = input();
-    cout << s.solve() << endl;
+    Solver sol = input();
+    if(!sol.solve()){
+        cout << "Solution does not exist." << endl;
+        return 0;
+    }
 
-    // s.dump();
+    cout << "Found solution." << endl;
+    for(auto& s: sol.getTrace()){
+        sol.prints(s);
+        cout << endl;
+    }
 
     return 0;
 }
