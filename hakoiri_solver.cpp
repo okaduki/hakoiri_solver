@@ -36,51 +36,98 @@ struct Solver{
         return 0 <= x && x < W && 0 <= y && y < H;
     }
 
-    State move(const State& s, char c, int d) const {
-        State res(H*W, EMPTY);
-        for(int y=0;y<H;++y){
-            for(int x=0;x<W;++x){
-                if(s[y*W+x] == c){
-                    res[(y + dy[d]) * W + (x + dx[d])] = c;
-                }
-            }
+    enum {
+        TY_NONE,
+        TY_DOT,
+        TY_HOR,
+        TY_VER,
+        TY_MUSUME,
+    };
+
+    int getType(char c) const {
+        switch(c){
+            case '.': return TY_DOT;
+            case '<': return TY_HOR;
+            case '^': return TY_VER;
+            case '1': return TY_MUSUME;
         }
-        for(int y=0;y<H;++y){
-            for(int x=0;x<W;++x){
-                if(s[y*W+x] != c && s[y*W+x] != EMPTY){
-                    res[y*W+x] = s[y*W+x];
-                }
-            }
+        return TY_NONE;
+    }
+
+    State move(const State& s, int type, int x, int y, int d) const {
+        State res = s;
+        const int tx = x + dx[d];
+        const int ty = y + dy[d];
+        const int id = y * W + x;
+        const int tid = ty * W + tx;
+        switch(type){
+        case TY_DOT:
+            res[tid] = '.';
+            res[id] = EMPTY;
+            break;
+        case TY_HOR: //only left
+            res[id] = res[id+1] = EMPTY;
+            res[tid] = '<';
+            res[tid+1] = '>';
+            break;
+        case TY_VER: // only top
+            res[id] = res[id+W] = EMPTY;
+            res[tid] = '^';
+            res[tid+W] = 'v';
+            break;
+        case TY_MUSUME: // only left-top
+            res[id] = res[id+1] = res[id+W] = res[id+1+W] = EMPTY;
+            res[tid] = res[tid+1] = res[tid+W] = res[tid+1+W] = MUSUME;
+            break;
         }
 
         return res;
     }
 
+    bool canMove(const State& s, int type, int x, int y, int d) const {
+        const int tx = x + dx[d];
+        const int ty = y + dy[d];
+        switch(type){
+        case TY_DOT:
+            return isin(tx, ty) && s[ty*W+tx] == EMPTY;
+        case TY_HOR: //only left
+            if(d == 0)
+                return isin(tx, ty) && s[ty*W+tx] == EMPTY;
+            else if(d == 2)
+                return isin(tx+1, ty) && s[ty*W+tx+1] == EMPTY;
+            else
+                return isin(tx, ty) && isin(tx+1, ty) && s[ty*W+tx] == EMPTY && s[ty*W+tx+1] == EMPTY;
+        case TY_VER: // only top
+            if(d == 1)
+                return isin(tx, ty) && s[ty*W+tx] == EMPTY;
+            else if(d == 3)
+                return isin(tx, ty+1) && s[ty*W+tx+W] == EMPTY;
+            else
+                return isin(tx, ty) && isin(tx, ty+1) && s[ty*W+tx] == EMPTY && s[ty*W+tx+W] == EMPTY;
+        case TY_MUSUME: // only left-top
+            return isin(tx, ty) && isin(tx+1, ty) && isin(tx, ty+1) && isin(tx+1, ty+1)
+                && (s[ty*W+tx] == EMPTY || s[ty*W+tx] == MUSUME)
+                && (s[ty*W+tx+1] == EMPTY || s[ty*W+tx+1] == MUSUME)
+                && (s[ty*W+tx+W] == EMPTY || s[ty*W+tx+W] == MUSUME)
+                && (s[ty*W+tx+1+W] == EMPTY || s[ty*W+tx+1+W] == MUSUME);
+        }
+
+        return false;
+    }
+
     States moves(const State& s) const {
         States res;
-        map<char,int> candidates;
 
         for(int y=0;y<H;++y){
             for(int x=0;x<W;++x){
-                char c = s[y*W+x];
-                if(!candidates.count(c)){
-                    candidates[c] = 0b1111;
-                }
+                int type = getType(s[y*W+x]);
+                if(type == TY_NONE) continue;
+                if(type == TY_MUSUME && !(x+1<W && y+1 < H && s[y*W+x+1] == MUSUME && s[y*W+x+W] == MUSUME)) continue;
 
                 for(int d=0;d<DIR;++d){
-                    int tx = x + dx[d];
-                    int ty = y + dy[d];
-                    if(!isin(tx, ty) || (s[ty*W+tx] != EMPTY && s[ty*W+tx] != c)){ // cannot move piece
-                        candidates[c] &= ~(1 << d);
+                    if(canMove(s, type, x, y, d)){ // cannot move piece
+                        res.emplace_back(move(s, type, x, y, d));
                     }
-                }
-            }
-        }
-
-        for(auto& candidate: candidates){
-            for(int d=0;d<DIR;++d){
-                if(candidate.second>>d&1){
-                    res.emplace_back(move(s, candidate.first, d));
                 }
             }
         }
